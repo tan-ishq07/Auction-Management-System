@@ -19,7 +19,15 @@ export const getAdminDashboard = async (req, res) => {
     })
       .populate("seller", "name email")
       .sort({ createdAt: -1 })
-      .limit(10);
+      .limit(10)
+      .lean();
+
+    const formattedRecentActiveAuctions = recentActiveAuctions.map(
+      (auction) => ({
+        ...auction,
+        itemPhoto: auction.itemImage?.url || "",
+      }),
+    );
 
     // Get recent users for display
     const recentUsersList = await User.find({})
@@ -34,7 +42,7 @@ export const getAdminDashboard = async (req, res) => {
         totalUsers,
         recentUsers,
       },
-      recentAuctions: recentActiveAuctions,
+      recentAuctions: formattedRecentActiveAuctions,
       recentUsersList: recentUsersList,
     });
   } catch (error) {

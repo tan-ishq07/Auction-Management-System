@@ -1,3 +1,5 @@
+// Old logic for uploading images to Cloudinary (not in use now)
+
 import { v2 as cloudinary } from "cloudinary";
 import { env } from "../config/env.config.js";
 

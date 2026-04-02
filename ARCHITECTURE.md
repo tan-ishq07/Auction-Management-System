@@ -55,8 +55,7 @@ The Online Auction System is a two-tier web application:
 | Socket.IO | 4.x | WebSocket server |
 | JWT | — | Authentication tokens |
 | bcrypt | 6.x | Password hashing |
-| Cloudinary | 1.x | Image upload & CDN |
-| Multer | 1.x | Multipart file handling |
+| Cloudinary | 1.x | Signed image upload & CDN |
 | Resend | 4.x | Email delivery |
 | Axios | 1.x | IP geolocation API calls |
 
@@ -84,10 +83,10 @@ The Online Auction System is a two-tier web application:
 ┌─────────────────────────────────────────────────────────────────┐
 │                        CLIENT (React SPA)                       │
 │                                                                 │
-│  ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │  Pages   │→ │  Hooks       │→ │  Services  │→ │  Axios   │──┼──→ REST API
-│  │          │  │ (React Query)│  │  (API Layer)│  │ Instance │  │
-│  └──────────┘  └──────────────┘  └────────────┘  └──────────┘  │
+│  ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐   │
+│  │  Pages   │→ │  Hooks       │→ │  Services  │→ │  Axios   │ ──┼──→ REST API
+│  │          │  │ (React Query)│  │ (API Layer)│  │ Instance │   │
+│  └──────────┘  └──────────────┘  └────────────┘  └──────────┘   │
 │                                                                 │
 │  ┌──────────┐  ┌──────────────┐                                 │
 │  │  Redux   │  │  Socket.IO   │─────────────────────────────────┼──→ WebSocket
@@ -98,17 +97,17 @@ The Online Auction System is a two-tier web application:
                     ┌─────────┴─────────┐
                     ▼                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SERVER (Express + Socket.IO)                  │
+│                    SERVER (Express + Socket.IO)                 │
 │                                                                 │
-│  ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐  │
-│  │  Routes  │→ │  Middleware   │→ │ Controllers│→ │  Models  │──┼──→ MongoDB
-│  │          │  │ (Auth/Multer) │  │            │  │          │  │
-│  └──────────┘  └──────────────┘  └────────────┘  └──────────┘  │
+│  ┌──────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐   │
+│  │  Routes  │→ │  Middleware  │→ │ Controllers│→ │  Models  │ ──┼──→ MongoDB
+│  │          │  │    (Auth)    │  │            │  │          │   │
+│  └──────────┘  └──────────────┘  └────────────┘  └──────────┘   │
 │                                                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
-│  │ Socket.IO    │  │  Services    │  │     Utilities      │    │
-│  │ (Real-time)  │  │ (Cloudinary) │  │ (JWT/Cookie/Geo)   │    │
-│  └──────────────┘  └──────────────┘  └────────────────────┘    │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐     │
+│  │ Socket.IO    │  │  Services    │  │     Utilities      │     │
+│  │ (Real-time)  │  │ (Cloudinary) │  │ (JWT/Cookie/Geo)   │     │
+│  └──────────────┘  └──────────────┘  └────────────────────┘     │
 └─────────────────────────────────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┐
@@ -203,8 +202,7 @@ online-auction-system/
 │   │   ├── admin.controller.js      # Admin dashboard & user management
 │   │   └── contact.controller.js    # Email contact form
 │   ├── middleware/
-│   │   ├── auth.middleware.js       # JWT verification & role check
-│   │   └── multer.js                # Cloudinary file upload
+│   │   └── auth.middleware.js       # JWT verification & role check
 │   ├── models/
 │   │   ├── user.model.js            # User schema
 │   │   ├── product.model.js         # Product (auction) + Bid schemas
@@ -215,9 +213,10 @@ online-auction-system/
 │   │   ├── auction.routes.js        # /auction/*
 │   │   ├── user.routes.js           # /user/*
 │   │   ├── admin.routes.js          # /admin/*
-│   │   └── contact.routes.js        # /contact
+│   │   ├── contact.routes.js        # /contact
+│   │   └── cloudinary.routes.js     # /upload/signature
 │   ├── services/
-│   │   └── cloudinaryService.js     # Cloudinary config & URL extraction
+│   │   └──cloudinary.service.js    # Signed upload signature + upload session
 │   ├── socket/
 │   │   ├── index.js                 # Socket.IO init & JWT auth middleware
 │   │   └── auction.handler.js       # Real-time bidding room handlers
@@ -275,7 +274,7 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 
 **`app.js`** — Express application:
 - Configures CORS, cookie parser, compression, JSON body parsing
-- Mounts all route groups: `/auth`, `/user`, `/auction`, `/contact`, `/admin`
+- Mounts all route groups: `/auth`, `/user`, `/auction`, `/contact`, `/admin`, `/upload`
 
 ---
 
@@ -286,9 +285,9 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 │         User             │     │          Product             │
 ├──────────────────────────┤     ├──────────────────────────────┤
 │ name         : String    │     │ itemName        : String     │
-│ email        : String ⊕  │     │ itemDescription : String     │
-│ password     : String 🔒 │     │ itemCategory    : String     │
-│ avatar       : String    │     │ itemPhoto       : String     │
+│ email        : String    │     │ itemDescription : String     │
+│ password     : String    │     │ itemCategory    : String     │
+│ avatar       : String    │     │ itemImage       : Object     │
 │ role         : enum      │◄────│ seller          : ObjectId   │
 │   ["user", "admin"]      │     │ startingPrice   : Number     │
 │ ipAddress    : String    │     │ currentPrice    : Number     │
@@ -303,11 +302,11 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 └──────────────────────────┘                  │ embedded
             │                     ┌───────────┴────────────┐
             │ ref                 │         Bid            │
-┌───────────┴──────────────┐     ├──────────────────────────┤
-│         Login            │     │ bidder    : ObjectId     │
-├──────────────────────────┤     │ bidAmount : Number       │
-│ userId    : ObjectId     │     │ bidTime   : Date         │
-│ ipAddress : String       │     └──────────────────────────┘
+┌───────────┴──────────────┐      ├────────────────────────┤
+│         Login            │      │ bidder    : ObjectId   │
+├──────────────────────────┤      │ bidAmount : Number     │
+│ userId    : ObjectId     │      │ bidTime   : Date       │
+│ ipAddress : String       │      └────────────────────────┘
 │ userAgent : String       │
 │ location  : { ... }      │
 │ loginAt   : Date (TTL)   │  ← Auto-expires after ~6 months
@@ -344,7 +343,7 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/auction` | 🔒 | List active auctions (paginated) |
-| `POST` | `/auction` | 🔒 | Create new auction (with image) |
+| `POST` | `/auction` | 🔒 | Create auction from uploaded image metadata (`formId`, `public_id`, `secure_url`) |
 | `GET` | `/auction/stats` | 🔒 | Dashboard statistics |
 | `GET` | `/auction/myauction` | 🔒 | User's own auctions (paginated) |
 | `GET` | `/auction/mybids` | 🔒 | Auctions user has bid on |
@@ -357,6 +356,12 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 |--------|----------|------|-------------|
 | `GET` | `/admin/dashboard` | 👑 | Admin dashboard stats |
 | `GET` | `/admin/users` | 👑 | List all users (paginated, searchable) |
+
+#### Upload Routes — `/upload` (🔒 Requires Auth)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/upload/signature` | 🔒 | Generate signed Cloudinary upload params + upload session `formId` |
 
 #### Contact Routes — `/contact`
 
@@ -382,7 +387,7 @@ server.js (Traditional)              index.js (Serverless / Vercel)
       │  Subsequent requests carry cookie automatically
       ▼
 ┌──────────┐    Cookie: auth_token  ┌──────────────────────────────────┐
-│  Client  │ ──────────────────────►│  auth.middleware.js               │
+│  Client  │ ──────────────────────►│  auth.middleware.js              │
 │          │                        │  secureRoute:                    │
 │          │                        │   1. Extract token from cookie   │
 │          │                        │   2. jwt.verify(token, secret)   │
@@ -462,8 +467,8 @@ server.js (Traditional)              index.js (Serverless / Vercel)
 
 | Module | Purpose |
 |--------|---------|
-| `cloudinaryService.js` | Configures Cloudinary SDK; extracts upload URL from multer |
-| `multer.js` | Multer middleware with Cloudinary storage backend |
+| `cloudinary.service.js` | Generates signed Cloudinary upload params and manages upload session records |
+| `cloudinaryService.js` | Configures Cloudinary SDK instance |
 | `jwt.js` | Token generation (`sign`) and verification (`verify`) |
 | `cookies.util.js` | Environment-aware cookie set/clear (dev vs production) |
 | `geoDetails.js` | IP geolocation via `ip-api.com`; client IP extraction from proxy headers |
@@ -505,15 +510,15 @@ The app uses **three route groups**, each with its own layout wrapper:
 │                        Router Structure                           │
 ├───────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│  🌐 Open Routes (OpenLayout)                                     │
+│   Open Routes (OpenLayout)                                        │
 │  ├── /              → Landing page                                │
 │  ├── /login         → Login page                                  │
 │  ├── /signup        → Registration page                           │
 │  ├── /contact       → Contact form                                │
 │  ├── /about         → About page                                  │
-│  └── /legal/*       → Legal pages (ToS, Privacy, DMCA, etc.)     │
+│  └── /legal/*       → Legal pages (ToS, Privacy, DMCA, etc.)      │
 │                                                                   │
-│  🔒 Protected Routes (MainLayout — redirects to /login)          │
+│   Protected Routes (MainLayout — redirects to /login)             │
 │  ├── /auction       → Browse active auctions                      │
 │  ├── /auction/:id   → View auction + real-time bidding            │
 │  ├── /create        → Create new auction                          │
@@ -522,7 +527,7 @@ The app uses **three route groups**, each with its own layout wrapper:
 │  ├── /profile       → User profile & settings                     │
 │  └── /privacy       → Privacy settings & login history            │
 │                                                                   │
-│  👑 Admin Routes (AdminLayout)                                    │
+│   Admin Routes (AdminLayout)                                      │
 │  ├── /admin         → Admin dashboard                             │
 │  └── /admin/users   → User management                             │
 │                                                                   │
@@ -542,30 +547,30 @@ The app uses a **hybrid approach** — Redux for auth, React Query for everythin
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              State Management Strategy           │
+│              State Management Strategy          │
 ├─────────────────────────────────────────────────┤
-│                                                  │
-│  Redux Toolkit (Global, Synchronous)             │
-│  └── authSlice                                   │
-│      ├── user: { name, email, avatar, role }     │
-│      ├── loading: boolean                        │
-│      ├── error: string | null                    │
-│      │                                           │
-│      ├── checkAuth()  → GET /user                │
-│      ├── login()      → POST /auth/login         │
-│      ├── signup()     → POST /auth/signup        │
-│      └── logout()     → POST /auth/logout        │
-│                                                  │
-│  React Query (Server State, Async)               │
-│  ├── ["auctions", page]     → Auction listings   │
-│  ├── ["myAuctions", page]   → User's auctions    │
-│  ├── ["myBids", page]       → User's bids        │
-│  ├── ["auction", id]        → Single auction      │
-│  ├── ["dashboardStats"]     → Dashboard data      │
-│  ├── ["adminDashboard"]     → Admin stats         │
-│  ├── ["allUsers", ...]      → Admin user list     │
-│  └── ["loginHistory"]       → Login audit log     │
-│                                                  │
+│                                                 │
+│  Redux Toolkit (Global, Synchronous)            │
+│  └── authSlice                                  │
+│      ├── user: { name, email, avatar, role }    │
+│      ├── loading: boolean                       │
+│      ├── error: string | null                   │
+│      │                                          │
+│      ├── checkAuth()  → GET /user               │
+│      ├── login()      → POST /auth/login        │
+│      ├── signup()     → POST /auth/signup       │
+│      └── logout()     → POST /auth/logout       │
+│                                                 │
+│  React Query (Server State, Async)              │
+│  ├── ["auctions", page]     → Auction listings  │
+│  ├── ["myAuctions", page]   → User's auctions   │
+│  ├── ["myBids", page]       → User's bids       │
+│  ├── ["auction", id]        → Single auction    │
+│  ├── ["dashboardStats"]     → Dashboard data    │
+│  ├── ["adminDashboard"]     → Admin stats       │
+│  ├── ["allUsers", ...]      → Admin user list   │
+│  └── ["loginHistory"]       → Login audit log   │
+│                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -636,21 +641,21 @@ Both client and server are configured for **Vercel deployment**:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                    Vercel Deployment                            │
+│                    Vercel Deployment                           │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                │
 │  Client (Vite SPA)                                             │
 │  ├── Build: vite build                                         │
 │  ├── Output: dist/                                             │
-│  └── vercel.json: SPA fallback rewrite (/* → /index.html)     │
+│  └── vercel.json: SPA fallback rewrite (/* → /index.html)      │
 │                                                                │
 │  Server (Serverless Functions)                                 │
-│  ├── Entry: index.js → exports Express app                    │
+│  ├── Entry: index.js → exports Express app                     │
 │  ├── Runtime: @vercel/node                                     │
 │  ├── DB: Per-request connection via middleware                 │
-│  └── vercel.json: All routes → /index.js                      │
+│  └── vercel.json: All routes → /index.js                       │
 │                                                                │
-│  ⚠️  Note: Socket.IO requires persistent connections,         │
+│    Note: Socket.IO requires persistent connections,            │
 │     which are NOT supported on Vercel Serverless.              │
 │     Real-time features require a traditional Node.js host      │
 │     (e.g., Railway, Render, VPS) running server.js.            │
@@ -695,18 +700,18 @@ Both client and server are configured for **Vercel deployment**:
 User clicks "Place Bid"
        │
        ├──── HTTP POST /auction/:id/bid ──────────────────────┐
-       │     (via usePlaceBid mutation)                        │
-       │                                                       ▼
+       │     (via usePlaceBid mutation)                       │
+       │                                                      ▼
        │                                          ┌────────────────────┐
-       │                                          │  auction.controller │
-       │                                          │  1. Validate amount │
-       │                                          │  2. Check auction   │
-       │                                          │     active & rules  │
-       │                                          │  3. Atomic update   │
-       │                                          │     with price lock │
-       │                                          │  4. Populate refs   │
-       │                                          │  5. io.to(id).emit  │
-       │                                          │     auction:bidPlaced│
+       │                                          │ auction.controller │
+       │                                          │ 1. Validate amount │
+       │                                          │ 2. Check auction   │
+       │                                          │    active & rules  │
+       │                                          │ 3. Atomic update   │
+       │                                          │    with price lock │
+       │                                          │ 4. Populate refs   │
+       │                                          │ 5. io.to(id).emit  │
+       │                                          │   auction:bidPlaced│
        │                                          └────────┬───────────┘
        │                                                   │
        │     HTTP 200 (success)                            │

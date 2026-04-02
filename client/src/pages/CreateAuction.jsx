@@ -1,13 +1,30 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useCreateAuction } from "../hooks/useAuction.js";
 import { useDocumentTitle } from "../hooks/useDocumentTitle.js";
+import {
+  getUploadSignature,
+  uploadImageToCloudinary,
+} from "../services/auction.service.js";
 
 export const CreateAuction = () => {
   useDocumentTitle("Create Auction");
-  const fileInputRef = useRef();
   const navigate = useNavigate();
+
+  const fileInputRef = useRef(null);
+  const previewUrlRef = useRef("");
+  const uploadedMetaRef = useRef({
+    formId: "",
+    public_id: "",
+    secure_url: "",
+  });
+
   const [error, setError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
+
   const [formData, setFormData] = useState({
     itemName: "",
     itemDescription: "",
@@ -15,8 +32,15 @@ export const CreateAuction = () => {
     startingPrice: "",
     itemStartDate: "",
     itemEndDate: "",
-    itemPhoto: "",
   });
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
 
   const { mutate, isPending } = useCreateAuction({
     onSuccess: (data) => {
@@ -27,13 +51,24 @@ export const CreateAuction = () => {
         startingPrice: "",
         itemStartDate: "",
         itemEndDate: "",
-        itemPhoto: "",
       });
+
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+      previewUrlRef.current = "";
+      setPreviewUrl("");
+      setSelectedFileName("");
+      setUploadProgress(0);
+      setIsUploading(false);
+      uploadedMetaRef.current = { formId: "", public_id: "", secure_url: "" };
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
       setError("");
       navigate(`/auction/${data.newAuction._id}`);
     },
-    onError: (error) =>
-      setError(error?.response?.data?.message || "Something went wrong"),
+    onError: (err) =>
+      setError(err?.response?.data?.message || "Something went wrong"),
   });
 
   const categories = [
@@ -54,39 +89,116 @@ export const CreateAuction = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     setError("");
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const fileSizeMB = file.size / (1024 * 1024);
+  const clearUploadedImage = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    previewUrlRef.current = "";
+    setPreviewUrl("");
+    setSelectedFileName("");
+    setUploadProgress(0);
+    setIsUploading(false);
 
-      if (!file.type.startsWith("image/")) {
-        alert("Only image files are allowed.");
-        return;
-      }
+    uploadedMetaRef.current = {
+      formId: "",
+      public_id: "",
+      secure_url: "",
+    };
 
-      if (fileSizeMB > 5) {
-        setError(`File size must be less than 5 MB.`);
-        return;
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        itemPhoto: file,
-      }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileSizeMB = file.size / (1024 * 1024);
+
+    if (!file.type.startsWith("image/")) {
+      setError("Only image files are allowed.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (fileSizeMB > 5) {
+      setError("File size must be less than 5 MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setError("");
+
+    // Instant local preview via ref-backed object URL
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    const localPreview = URL.createObjectURL(file);
+    previewUrlRef.current = localPreview;
+    setPreviewUrl(localPreview);
+    setSelectedFileName(file.name);
+
+    // Reset previous upload metadata and begin upload UI
+    uploadedMetaRef.current = { formId: "", public_id: "", secure_url: "" };
+    setUploadProgress(0);
+    setIsUploading(true);
+
+    try {
+      const signatureRes = await getUploadSignature();
+      const signatureData = signatureRes?.data;
+
+      if (!signatureData?.formId) {
+        throw new Error("Failed to initialize upload session");
+      }
+
+      const uploadRes = await uploadImageToCloudinary({
+        file,
+        signatureData,
+        onProgress: (percent) => setUploadProgress(percent),
+      });
+
+      const public_id = uploadRes?.public_id;
+      const secure_url = uploadRes?.secure_url;
+
+      if (!public_id || !secure_url) {
+        throw new Error("Cloud upload failed");
+      }
+
+      // Keep cloud metadata in ref (no extra save endpoint call)
+      uploadedMetaRef.current = {
+        formId: signatureData.formId,
+        public_id,
+        secure_url,
+      };
+
+      setUploadProgress(100);
+    } catch (err) {
+      uploadedMetaRef.current = { formId: "", public_id: "", secure_url: "" };
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Image upload failed. Please try again.",
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.itemPhoto) {
-      setError("Please upload an image.");
+
+    const uploadMeta = uploadedMetaRef.current;
+    if (!uploadMeta.formId || !uploadMeta.public_id || !uploadMeta.secure_url) {
+      setError(
+        isUploading
+          ? "Image upload is in progress. Please wait."
+          : "Please upload an image first.",
+      );
       return;
     }
 
@@ -98,18 +210,20 @@ export const CreateAuction = () => {
       return;
     }
 
-    mutate(formData);
+    mutate({
+      ...formData,
+      formId: uploadMeta.formId,
+      public_id: uploadMeta.public_id,
+      secure_url: uploadMeta.secure_url,
+    });
   };
 
-  //   today date
   const today = new Date().toISOString().split("T")[0];
 
-  //   today+15 days
   const maxStart = new Date();
   maxStart.setDate(maxStart.getDate() + 15);
   const maxStartDate = maxStart.toISOString().split("T")[0];
 
-  //   max end date
   let maxEndDate = "";
   if (formData.itemStartDate) {
     const end = new Date(formData.itemStartDate);
@@ -120,10 +234,11 @@ export const CreateAuction = () => {
   const inputClasses =
     "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 text-sm placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400 transition";
 
+  const submitDisabled = isPending || isUploading;
+
   return (
     <div className="min-h-screen bg-gray-50/80">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
           type="button"
@@ -145,7 +260,6 @@ export const CreateAuction = () => {
           Back
         </button>
 
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Create Auction</h1>
           <p className="text-sm text-gray-400 mt-1">List an item for bidding</p>
@@ -154,7 +268,6 @@ export const CreateAuction = () => {
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm">
           <div className="p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Item Name */}
               <div>
                 <label
                   htmlFor="itemName"
@@ -174,7 +287,6 @@ export const CreateAuction = () => {
                 />
               </div>
 
-              {/* Item Description */}
               <div>
                 <label
                   htmlFor="itemDescription"
@@ -194,7 +306,6 @@ export const CreateAuction = () => {
                 />
               </div>
 
-              {/* Category and Starting Price */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <label
@@ -247,7 +358,6 @@ export const CreateAuction = () => {
                 </div>
               </div>
 
-              {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <label
@@ -290,12 +400,12 @@ export const CreateAuction = () => {
                 </div>
               </div>
 
-              {/* Photo Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Photo
                 </label>
-                {!formData.itemPhoto ? (
+
+                {!previewUrl ? (
                   <label
                     htmlFor="itemPhoto"
                     className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100/60 hover:border-gray-300 transition-colors"
@@ -325,21 +435,20 @@ export const CreateAuction = () => {
                       ref={fileInputRef}
                       accept="image/*"
                       className="hidden"
+                      disabled={isUploading}
                     />
                   </label>
                 ) : (
                   <div className="relative inline-block">
                     <img
-                      src={URL.createObjectURL(formData.itemPhoto)}
+                      src={previewUrl}
                       alt="Preview"
                       className="w-44 h-44 object-cover rounded-2xl border border-gray-200"
                     />
+
                     <button
                       type="button"
-                      onClick={() => {
-                        setFormData((prev) => ({ ...prev, itemPhoto: "" }));
-                        fileInputRef.current.value = "";
-                      }}
+                      onClick={clearUploadedImage}
                       className="absolute -top-2 -right-2 bg-white border border-gray-200 rounded-full p-1 shadow-sm hover:bg-red-50 hover:border-red-200 transition"
                     >
                       <svg
@@ -356,36 +465,63 @@ export const CreateAuction = () => {
                         />
                       </svg>
                     </button>
+
+                    <div className="mt-3 w-44">
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                        <span className="truncate pr-2">
+                          {selectedFileName}
+                        </span>
+                        <span className="tabular-nums">{uploadProgress}%</span>
+                      </div>
+                      <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-200 ${
+                            uploadProgress === 100
+                              ? "bg-emerald-500"
+                              : "bg-indigo-500"
+                          }`}
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        {isUploading
+                          ? "Uploading to Cloudinary..."
+                          : uploadProgress === 100
+                            ? "Upload complete"
+                            : "Ready"}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Error */}
               {error && (
                 <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm">
                   {error}
                 </div>
               )}
 
-              {/* Submit */}
               <div className="pt-4 border-t border-gray-100">
                 <button
                   type="submit"
-                  disabled={isPending}
+                  disabled={submitDisabled}
                   className={`w-full sm:w-auto px-8 py-3 rounded-xl font-semibold text-sm transition-all ${
-                    isPending
+                    submitDisabled
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                       : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.97] shadow-sm shadow-indigo-200"
                   }`}
                 >
-                  {isPending ? "Creating..." : "Create Auction"}
+                  {isUploading
+                    ? "Uploading..."
+                    : isPending
+                      ? "Creating..."
+                      : "Create Auction"}
                 </button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* Tips */}
         <HelpSection />
       </div>
     </div>

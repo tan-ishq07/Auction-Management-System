@@ -202,7 +202,7 @@ Redirects to `/login` if not authenticated.
 | -------------- | ------------- | ------------------------------------------------------------- |
 | `/`            | Dashboard     | Stats, recent auctions (replaces landing for logged-in users) |
 | `/auction`     | AuctionList   | Browse all active auctions with pagination                    |
-| `/create`      | CreateAuction | Create new auction with image upload                          |
+| `/create`      | CreateAuction | Create new auction with signed Cloudinary upload (preview + progress) |
 | `/auction/:id` | ViewAuction   | Auction detail with live bidding                              |
 | `/myauction`   | MyAuction     | User's own auctions                                           |
 | `/mybids`      | MyBids        | Auctions the user has bid on                                  |
@@ -486,7 +486,7 @@ Paginated grid pages with category filtering, back buttons, empty state messages
 
 ### CreateAuction
 
-Full form with 13 categories, date pickers (constrained: start ≥ now, end > start), image upload with preview, starting price input, and tips section.
+Full form with 13 categories, date pickers (constrained: start ≥ now, end > start), signed Cloudinary upload on image select, instant local preview via `useRef`, upload progress bar/status, metadata-based submit (`formId`, `public_id`, `secure_url`), and tips section.
 
 ### Profile
 

@@ -8,7 +8,6 @@ import {
   myAuction,
   myBids,
 } from "../controllers/auction.controller.js";
-import upload from "../middleware/multer.js";
 import { secureRoute } from "../middleware/auth.middleware.js";
 
 const auctionRoutes = express.Router();
@@ -19,7 +18,7 @@ auctionRoutes.get("/stats", dashboardData);
 auctionRoutes
   .route("/")
   .get(showAuction)
-  .post(upload.single("itemPhoto"), createAuction);
+  .post( createAuction);
 
 auctionRoutes.get("/myauction", myAuction);
 auctionRoutes.get("/mybids", myBids);

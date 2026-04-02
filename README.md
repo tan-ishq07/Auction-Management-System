@@ -79,7 +79,7 @@ Most auction system tutorials stop at basic CRUD. This project goes much further
 | Category              | Features                                                                                                                                                                       |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Authentication**    | JWT with httpOnly secure cookies · Auto-login on refresh · Role-based access (User/Admin) · Password change with validation                                                    |
-| **Auctions**          | Create with image upload (Cloudinary) · Browse with pagination · Category filtering · Live countdown timers · Auto-winner detection on expiry                                  |
+| **Auctions**          | Signed Cloudinary upload on image select (instant preview + progress) · Create via metadata payload (`formId`, `public_id`, `secure_url`) · Browse with pagination · Category filtering · Live countdown timers · Auto-winner detection on expiry |
 | **Real-time Bidding** | Socket.io room-based architecture · Atomic bid updates (no race conditions) · Live active user count · Instant bid broadcast to all viewers · Seller cannot bid on own auction |
 | **Dashboard**         | Personal stats (total/active auctions) · Recent auctions grid · Quick navigation to all sections                                                                               |
 | **Admin Panel**       | System-wide statistics · User management with search, sort, pagination · Recent signups tracking · Role-based route protection                                                 |
@@ -110,7 +110,7 @@ Node.js + Express 5
 MongoDB + Mongoose  
 Socket.io  
 JWT + bcrypt  
-Cloudinary + Multer  
+Cloudinary (signed direct upload)  
 Resend (email)  
 Compression
 
@@ -206,7 +206,7 @@ online-auction-system/
 │   ├── models/                  # Mongoose schemas (User, Product, Login)
 │   ├── routes/                  # REST API routes
 │   ├── socket/                  # Socket.io initialization + auction handlers
-│   ├── middleware/               # Auth + file upload middleware
+│   ├── middleware/               # Auth middleware
 │   ├── services/                # Cloudinary integration
 │   ├── utils/                   # JWT, cookies, geo-location
 │   ├── config/                  # DB + env configuration
@@ -298,15 +298,15 @@ App renders (protected routes check auth.user)
 
 ### Auctions
 
-| Method | Endpoint             | Description                | Auth     |
-| ------ | -------------------- | -------------------------- | -------- |
-| `GET`  | `/auction`           | List auctions (paginated)  | Required |
-| `POST` | `/auction`           | Create auction (multipart) | Required |
-| `GET`  | `/auction/stats`     | Dashboard statistics       | Required |
-| `GET`  | `/auction/myauction` | User's own auctions        | Required |
-| `GET`  | `/auction/mybids`    | Auctions user has bid on   | Required |
-| `GET`  | `/auction/:id`       | Single auction detail      | Required |
-| `POST` | `/auction/:id/bid`   | Place a bid                | Required |
+| Method | Endpoint             | Description                                   | Auth     |
+| ------ | -------------------- | --------------------------------------------- | -------- |
+| `GET`  | `/auction`           | List auctions (paginated)                     | Required |
+| `POST` | `/auction`           | Create auction (JSON + uploaded image metadata) | Required |
+| `GET`  | `/auction/stats`     | Dashboard statistics                          | Required |
+| `GET`  | `/auction/myauction` | User's own auctions                           | Required |
+| `GET`  | `/auction/mybids`    | Auctions user has bid on                      | Required |
+| `GET`  | `/auction/:id`       | Single auction detail                         | Required |
+| `POST` | `/auction/:id/bid`   | Place a bid                                   | Required |
 
 ### Admin
 
@@ -314,6 +314,12 @@ App renders (protected routes check auth.user)
 | ------ | ------------------ | ---------------------------------- | ----- |
 | `GET`  | `/admin/dashboard` | Admin statistics                   | Admin |
 | `GET`  | `/admin/users`     | List users (paginated, searchable) | Admin |
+
+### Upload
+
+| Method | Endpoint            | Description                                | Auth     |
+| ------ | ------------------- | ------------------------------------------ | -------- |
+| `GET`  | `/upload/signature` | Generate signed Cloudinary upload params   | Required |
 
 ### Contact
 

@@ -1,6 +1,6 @@
 # Online Auction System — Backend
 
-> Express 5 REST API + Socket.io real-time bidding server with MongoDB, JWT auth, Cloudinary uploads, and automated deployment.
+> Express 5 REST API + Socket.io real-time bidding server with MongoDB, JWT auth, signed Cloudinary uploads, and automated deployment.
 
 ---
 
@@ -15,6 +15,7 @@
   - [User](#user-endpoints)
   - [Auctions](#auction-endpoints)
   - [Admin](#admin-endpoints)
+  - [Upload](#upload-endpoints)
   - [Contact](#contact-endpoints)
 - [Socket.io Events](#socketio-real-time-events)
 - [Database Models](#database-models)
@@ -62,11 +63,11 @@ server/
 │   └── auction.handler.js → Room management + bid handling
 │
 ├── middleware/
-│   ├── auth.middleware.js  → JWT verification + admin check
-│   └── multer.js           → Cloudinary storage config
+│   └── auth.middleware.js  → JWT verification + admin check
 │
 ├── services/
-│   └── cloudinaryService.js → Cloudinary setup + image URL helper
+│   ├── cloudinary.service.js → Signed upload signature generation + upload session persistence
+│   └── cloudinaryService.js  → Cloudinary SDK config export
 │
 └── utils/
     ├── jwt.js             → Token generation + verification
@@ -123,10 +124,10 @@ The server runs on `http://localhost:3000` by default.
 | -------------- | ---------------------------------------------------------------------- |
 | `config/`      | Database connection and environment variable management                |
 | `controllers/` | Request handlers — all business logic lives here                       |
-| `middleware/`  | JWT auth verification, admin role check, Multer file upload            |
+| `middleware/`  | JWT auth verification and admin role check                              |
 | `models/`      | Mongoose schemas for User, Product (auction), and Login history        |
 | `routes/`      | Express router definitions (thin — just maps endpoints to controllers) |
-| `services/`    | External service integrations (Cloudinary)                             |
+| `services/`    | External service integrations (Cloudinary signing + config)            |
 | `socket/`      | Socket.io initialization, JWT auth for sockets, auction room handlers  |
 | `utils/`       | JWT helpers, cookie management, geo-location utilities                 |
 
@@ -376,9 +377,9 @@ List active auctions (not expired) with pagination.
 
 #### `POST /auction`
 
-Create a new auction. Accepts `multipart/form-data` for image upload.
+Create a new auction using a JSON payload. The image must already be uploaded to Cloudinary using the signed upload flow.
 
-**Body (form-data):**
+**Body (application/json):**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `itemName` | String | Yes | Auction title |
@@ -387,7 +388,9 @@ Create a new auction. Accepts `multipart/form-data` for image upload.
 | `startingPrice` | Number | Yes | Starting bid (min: 1) |
 | `itemStartDate` | Date | No | Start date (default: now) |
 | `itemEndDate` | Date | Yes | End date (must be after start) |
-| `itemPhoto` | File | No | Image file (uploaded to Cloudinary) |
+| `formId` | String | Yes | Upload session id from `GET /upload/signature` |
+| `public_id` | String | Yes | Cloudinary public id returned by upload API |
+| `secure_url` | String | Yes | Cloudinary secure image URL returned by upload API |
 
 **Response:** `201 Created`
 
@@ -563,6 +566,38 @@ Paginated user list with search, filter, and sort.
 
 ---
 
+### Upload Endpoints
+
+All upload endpoints require authentication.
+
+#### `GET /upload/signature`
+
+Generate signed Cloudinary upload params and create an upload session.
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": 1750000000,
+    "folder": "auction_system",
+    "signature": "generated_signature",
+    "apiKey": "123456789",
+    "cloudName": "your-cloud-name",
+    "formId": "uuid-generated-form-id"
+  }
+}
+```
+
+**Usage flow:**
+1. Call `GET /upload/signature` to get signed params + `formId`
+2. Upload file directly to Cloudinary from client using returned signature fields
+3. Call `POST /auction` with `formId`, `public_id`, and `secure_url` plus auction fields
+4. Server validates upload session and marks it as used after successful auction creation
+
+---
+
 ### Contact Endpoints
 
 #### `POST /contact`
@@ -664,7 +699,10 @@ Each auction page creates a "room" identified by the auction ID. Users are track
   itemName: String,          // Required, trimmed
   itemDescription: String,   // Required
   itemCategory: String,      // Required
-  itemPhoto: String,         // Cloudinary URL
+  itemImage: {
+    public_id: String,       // Cloudinary public id
+    url: String              // Cloudinary secure URL
+  },
   startingPrice: Number,     // Required, min: 1
   currentPrice: Number,      // Updated with each bid
   itemStartDate: Date,       // Default: now
@@ -708,9 +746,11 @@ Extracts `auth_token` from cookies, verifies JWT, and attaches `req.user = { id,
 
 Checks `req.user.role === "admin"`. Returns `403` if not admin. Must be used after `secureRoute`.
 
-### `multer` (Cloudinary Storage)
+### Upload signature flow (`/upload/signature`)
 
-Configured with `multer-storage-cloudinary` — files are uploaded directly to Cloudinary during the request. `req.file.path` contains the Cloudinary URL.
+The backend generates signed Cloudinary upload params and a `formId` upload session.  
+Clients upload directly to Cloudinary, then pass `formId`, `public_id`, and `secure_url` to `POST /auction`.  
+The auction controller validates the upload session and marks it as used after successful auction creation.
 
 ---
 

@@ -175,7 +175,7 @@ export const ViewAuction = () => {
               <div className="relative group">
                 <div className="aspect-[4/3] bg-white rounded-2xl overflow-hidden border border-gray-200/80 shadow-sm">
                   <img
-                    src={data.itemPhoto || "https://picsum.photos/601"}
+                    src={data.itemImage?.url || "https://picsum.photos/601"}
                     alt={data.itemName}
                     className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
                   />

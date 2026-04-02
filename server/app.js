@@ -9,8 +9,11 @@ import {
   auctionRoutes,
   contactRoutes,
   adminRoutes,
+  cloudinaryRoutes,
 } from "./routes/index.js";
 import { connectDB } from "./config/db.config.js";
+import cron from "node-cron";
+import { cleanupUnusedUploads } from "./jobs/cleanupUploads.js";
 
 export const app = express();
 
@@ -33,10 +36,28 @@ if (process.env.VERCEL) {
   });
 }
 
-app.use("/auth", authRoutes);
-app.use("/user", userRoutes);
-app.use("/auction", auctionRoutes);
-app.use("/contact", contactRoutes);
-app.use("/admin", adminRoutes);
+let isRunning = false;
+
+// Daily cleanup cron job
+cron.schedule("0 0 * * *", async () => { // Runs at midnight every day
+  if (isRunning) return;
+
+  isRunning = true;
+
+  try {
+    await cleanupUnusedUploads();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    isRunning = false;
+  }
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/auction", auctionRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/upload", cloudinaryRoutes);
 
 export default app; // Exporting default app for serverless deployment

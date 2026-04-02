@@ -2,6 +2,7 @@ import getImageUrl from "../services/cloudinaryService.js";
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 import { getIO } from "../socket/index.js";
+import Upload from "../models/upload.model.js";
 
 export const createAuction = async (req, res) => {
   try {
@@ -12,19 +13,10 @@ export const createAuction = async (req, res) => {
       itemCategory,
       itemStartDate,
       itemEndDate,
+      formId,
+      public_id,
+      secure_url,
     } = req.body;
-    let imageUrl = "";
-
-    if (req.file) {
-      try {
-        imageUrl = getImageUrl(req.file);
-      } catch (error) {
-        return res.status(500).json({
-          message: "Error uploading image to Cloudinary",
-          error: error.message,
-        });
-      }
-    }
 
     const start = itemStartDate ? new Date(itemStartDate) : new Date();
     const end = new Date(itemEndDate);
@@ -34,18 +26,38 @@ export const createAuction = async (req, res) => {
         .json({ message: "Auction end date must be after start date" });
     }
 
+    const upload = await Upload.findOne({ formId });
+
+    if (!upload) {
+      return res.status(400).json({
+        message: "Invalid upload session",
+      });
+    }
+
+    if (!public_id || !secure_url) {
+      return res.status(400).json({
+        message: "Image is required",
+      });
+    }
+
     const newAuction = new Product({
       itemName,
       startingPrice,
       currentPrice: startingPrice,
       itemDescription,
       itemCategory,
-      itemPhoto: imageUrl,
+      itemImage: {
+        public_id,
+        url: secure_url,
+      },
       itemStartDate: start,
       itemEndDate: end,
       seller: req.user.id,
     });
     await newAuction.save();
+
+    upload.status = "used";
+    await upload.save();
 
     res
       .status(201)
@@ -69,7 +81,7 @@ export const showAuction = async (req, res) => {
     const auction = await Product.find(filter)
       .populate("seller", "name")
       .select(
-        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemPhoto seller",
+        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemImage seller",
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -83,7 +95,7 @@ export const showAuction = async (req, res) => {
       timeLeft: Math.max(0, new Date(item.itemEndDate) - new Date()),
       itemCategory: item.itemCategory,
       sellerName: item.seller.name,
-      itemPhoto: item.itemPhoto,
+      itemPhoto: item.itemImage?.url,
     }));
 
     res.status(200).json({
@@ -137,11 +149,9 @@ export const auctionById = async (req, res) => {
         (b) => b.bidder?._id?.toString() === userId,
       );
       if (!isSeller && !isBidder) {
-        return res
-          .status(403)
-          .json({
-            message: "This auction has ended and is no longer available",
-          });
+        return res.status(403).json({
+          message: "This auction has ended and is no longer available",
+        });
       }
     }
 
@@ -283,7 +293,7 @@ export const dashboardData = async (req, res) => {
       timeLeft: Math.max(0, new Date(item.itemEndDate) - new Date()),
       itemCategory: item.itemCategory,
       sellerName: item.seller.name,
-      itemPhoto: item.itemPhoto,
+      itemPhoto: item.itemImage?.url,
     }));
 
     const userAuction = await Product.find({ seller: userObjectId })
@@ -299,7 +309,7 @@ export const dashboardData = async (req, res) => {
       timeLeft: Math.max(0, new Date(item.itemEndDate) - new Date()),
       itemCategory: item.itemCategory,
       sellerName: item.seller.name,
-      itemPhoto: item.itemPhoto,
+      itemPhoto: item.itemImage?.url,
     }));
 
     return res.status(200).json({
@@ -328,7 +338,7 @@ export const myAuction = async (req, res) => {
     const auction = await Product.find(filter)
       .populate("seller", "name")
       .select(
-        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemPhoto seller",
+        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemImage seller",
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -342,7 +352,7 @@ export const myAuction = async (req, res) => {
       timeLeft: Math.max(0, new Date(item.itemEndDate) - new Date()),
       itemCategory: item.itemCategory,
       sellerName: item.seller.name,
-      itemPhoto: item.itemPhoto,
+      itemPhoto: item.itemImage?.url,
     }));
 
     res.status(200).json({
@@ -375,7 +385,7 @@ export const myBids = async (req, res) => {
       .populate("seller", "name")
       .populate("winner", "name")
       .select(
-        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemPhoto seller winner isSold",
+        "itemName itemDescription currentPrice bids itemEndDate itemCategory itemImage seller winner isSold",
       )
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -392,7 +402,7 @@ export const myBids = async (req, res) => {
         timeLeft: Math.max(0, new Date(item.itemEndDate) - new Date()),
         itemCategory: item.itemCategory,
         sellerName: item.seller.name,
-        itemPhoto: item.itemPhoto,
+        itemPhoto: item.itemImage?.url,
         isExpired,
         winner: item.winner
           ? { _id: item.winner._id, name: item.winner.name }
