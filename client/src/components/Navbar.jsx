@@ -67,8 +67,9 @@ export const Navbar = () => {
     };
   }, [isMenuOpen]);
 
-  const navItems = user ? getNavLinks(user.user.role) : navMenu;
-  const drawerItems = user ? getAllLinks(user.user.role) : navMenu;
+const userRole = user?.user?.role;
+const navItems = userRole ? getNavLinks(userRole) : navMenu;
+const drawerItems = userRole ? getAllLinks(userRole) : navMenu;
 
   return (
     <>
@@ -128,9 +129,9 @@ export const Navbar = () => {
                       }
                     >
                       <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
-                        {user.user.name?.charAt(0)?.toUpperCase()}
+                        {user?.user?.name?.charAt(0)?.toUpperCase()}
                       </div>
-                      {user.user.name?.split(" ")[0]}
+                      {user?.user?.name?.split(" ")[0]}
                     </NavLink>
                     <button
                       onClick={handleLogout}
@@ -199,24 +200,24 @@ export const Navbar = () => {
           <div className="px-5 py-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
-                {user.user.avatar ? (
+                {user?.user?.avatar ? (
                   <img
-                    src={user.user.avatar}
-                    alt={user.user.name}
+  src={user?.user?.avatar}
+  alt={user?.user?.name}
                     className="h-full w-full object-cover"
                   />
                 ) : (
                   <span className="text-sm font-bold text-indigo-600">
-                    {user.user.name?.charAt(0)?.toUpperCase()}
+                   {user?.user?.name?.charAt(0)?.toUpperCase()}
                   </span>
                 )}
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-gray-900 text-sm truncate">
-                  {user.user.name}
+                 {user?.user?.name}
                 </p>
                 <p className="text-xs text-gray-400 truncate">
-                  {user.user.email}
+                  {user?.user?.name}
                 </p>
               </div>
             </div>

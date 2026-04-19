@@ -144,13 +144,13 @@ const Dashboard = () => {
             </Link>
           </div>
 
-          {data.latestAuctions.length === 0 ? (
+          {data?.latestAuctions?.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-200/80 shadow-sm">
               <p className="text-gray-400">No auctions available yet.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {data.latestAuctions.map((auction) => (
+              {data?.latestAuctions?.map((auction) => (
                 <AuctionCard key={auction._id} auction={auction} />
               ))}
             </div>
@@ -171,7 +171,7 @@ const Dashboard = () => {
             </Link>
           </div>
 
-          {data.latestUserAuctions.length === 0 ? (
+          {data?.latestUserAuctions?.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-gray-200/80 shadow-sm">
               <p className="text-gray-400 mb-4">
                 You haven&apos;t listed anything yet.
@@ -185,7 +185,7 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {data.latestUserAuctions.map((auction) => (
+              {data?.latestUserAuctions?.map((auction) => (
                 <AuctionCard key={auction._id} auction={auction} />
               ))}
             </div>

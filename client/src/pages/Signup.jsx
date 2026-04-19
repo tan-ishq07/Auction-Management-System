@@ -1,8 +1,7 @@
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { signup } from "../store/auth/authSlice";
-import { Link } from "react-router";
 import LoadingScreen from "../components/LoadingScreen";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
@@ -27,19 +26,18 @@ const Signup = () => {
       navigate("/");
     } catch (error) {
       console.log("Signup Failed", error);
-      setIsError(error || "something went wrong");
+      setIsError(error?.message || error || "Something went wrong");
       setTimeout(() => {
         setIsError("");
       }, 10000);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
-
+useEffect(() => {
+  if (user && window.location.pathname !== "/") {
+    navigate("/");
+  }
+}, [user, navigate]);
   if (loading) return <LoadingScreen />;
 
   return (

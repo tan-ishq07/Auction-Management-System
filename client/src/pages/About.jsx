@@ -6,6 +6,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 export const About = () => {
   useDocumentTitle("About");
   const { user } = useSelector((state) => state.auth);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-12">
@@ -69,54 +70,13 @@ export const About = () => {
 
             <section>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Developer
-              </h2>
-              <p>
-                This project has been created by <strong>Avnish Kumar</strong>{" "}
-                as a demonstration of modern web development techniques and to
-                help fellow students in their academic journey.
-              </p>
-
-              <div className="mt-4 p-4 bg-gray-50 rounded-sm">
-                <p className="font-medium text-gray-900 mb-2">
-                  Connect with the Developer:
-                </p>
-                <div className="space-y-2">
-                  <p>
-                    <span className="font-medium">GitHub Profile:</span>{" "}
-                    <a
-                      href="https://github.com/theavnishkumar"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      github.com/theavnishkumar
-                    </a>
-                  </p>
-                  <p>
-                    <span className="font-medium">Project Repository:</span>{" "}
-                    <a
-                      href="https://github.com/theavnishkumar/online-auction-system"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      github.com/theavnishkumar/online-auction-system
-                    </a>
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Getting Started
               </h2>
               <p>
-                To get started with this project, visit the GitHub repository
-                where you'll find detailed installation instructions,
-                documentation, and code explanations. The repository includes
-                everything you need to set up and run the application locally.
+                To get started with this project, refer to the project
+                documentation where you'll find installation instructions,
+                setup steps, and code explanations. The documentation includes
+                everything you need to run the application locally.
               </p>
             </section>
 
